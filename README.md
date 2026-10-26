@@ -1,7 +1,9 @@
 # RGB Music Visualizer
 
 Makes RGB keyboards, mice and ARGB lighting react to whatever is playing on
-your Windows PC: spectrum bars, beat pulses, ripples and VU meters, with a
+your Windows PC: spectrum bars, beat pulses, ripples, VU meters and
+**Madness** (random colors everywhere, keys reacting to random frequencies, and
+pixel-art shapes, figures, words and animals scrolling across), with a
 per-band sensitivity equalizer.
 
 Works with the Keyboardio Model 100, Logitech G, Razer Chroma,

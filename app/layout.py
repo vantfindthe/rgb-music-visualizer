@@ -7,6 +7,9 @@ A Layout describes one device's LEDs, in the order the device expects them:
   linear  per-LED flag: LED is part of a strip (fan ring, ARGB strip, zone)
           rather than a 2-D key grid; effects use 1-D variants for these
   round   draw LEDs as dots instead of keycaps
+  sprite_x, sprite_width
+          key-unit x positions used to scroll pixel-art sprites (Madness);
+          split keyboards close the gap between their halves here
 """
 
 import numpy as np
@@ -26,6 +29,8 @@ class Layout:
         xs_r = [x + w for x, y, w, h in self.rects] or [1]
         ys_r = [y + h for x, y, w, h in self.rects] or [1]
         self.width, self.depth = max(xs_r), max(ys_r)
+        self.sprite_x = np.array([x + w / 2 for x, y, w, h in self.rects])
+        self.sprite_width = self.width
 
     @property
     def tiny(self):
@@ -96,4 +101,9 @@ def model100():
         rects[r * 16 + (15 - c)] = (width - x - w, y, w, h)
     xs = [(x + w / 2) / width for x, y, w, h in rects]
     ys = [(y + h / 2) / height for x, y, w, h in rects]
-    return Layout(rects, xs, ys, linear=False)
+    lay = Layout(rects, xs, ys, linear=False)
+    # Sprites jump the gap between the halves (left half ends at x=7, right starts at 12.4).
+    gap = 5.4
+    lay.sprite_x = np.where(lay.sprite_x > width / 2, lay.sprite_x - gap, lay.sprite_x)
+    lay.sprite_width = width - gap
+    return lay

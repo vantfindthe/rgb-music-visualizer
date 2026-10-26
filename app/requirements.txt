@@ -5,3 +5,4 @@ customtkinter
 pillow
 openrgb-python
 hidapi
+comtypes

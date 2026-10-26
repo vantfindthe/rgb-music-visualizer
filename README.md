@@ -52,6 +52,37 @@ Logitech quirk: the SDK reports success even for calls a device ignores. The
 G610 only accepts the key bitmap when the target is "all devices", so the app
 uses that; white-only keyboards (G610, G710+) get brightness from each key's color.
 
+## Paint mode
+
+Switch to **Paint** at the top of the window. Click or drag on a device's
+preview to paint its LEDs; the animations, key presses and sound then act on
+your painting.
+
+- **Brush:** Brush, Erase or Pick (Pick takes the color of the LED you click).
+  Size is how many keys the brush covers; Weight is how much the neighbours take.
+- **Animation:** Static, Breathe, Blink, Wave, Rainbow or Sparkle (Sparkle only
+  lights painted LEDs). Cycle sets the speed; Heat fade how long a key stays warm.
+- **React to:** *Keystrokes* lights the key you press (and *Heatmap* warms keys
+  you press often, fading over time). *Audio* pulses the paint with the music.
+- **Canvas:** Fill, Clear and Undo act on the device selected in the list.
+  Layouts are saved under call-sign names (Alpha, Bravo...); the painting is
+  also autosaved, so it survives a restart.
+
+Keystroke reactions and the heatmap:
+- Windows only for now, and they only work on keyboards whose keys are mapped
+  (the Model 100 today).
+- Only which key was pressed, and when, is kept, in memory only. Nothing typed
+  is recorded. Presses while a password field has focus are ignored (this needs
+  UI Automation, which is included via `comtypes`; without it only classic
+  password boxes are detected).
+- The keyboard is only listened to while a Paint setting needs it.
+
+## Tests
+
+With the app's virtual environment:
+
+    app\.venv\Scripts\python -m pytest app\tests
+
 ## Keyboardio Model 100 firmware
 
 The stock firmware can't take LED colors from a PC, so the Model 100 needs

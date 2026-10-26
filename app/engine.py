@@ -1,5 +1,5 @@
-"""Render loop: captures audio, renders effects for every device and streams
-the frames, one sender thread per device."""
+"""Render loop: captures audio, renders the music effects or the painted lighting for every device,
+and streams the frames, one sender thread per device."""
 
 import threading
 import time
@@ -8,6 +8,7 @@ import numpy as np
 
 import audio
 import effects
+import paint
 from devices import OutputError
 
 CUSTOM = "Custom"
@@ -98,13 +99,19 @@ class OutputWorker(threading.Thread):
 class Engine(threading.Thread):
     """`outputs` are the enabled devices. `preview` (settable any time) is an
     Output whose frame is rendered for the on-screen preview even when it
-    isn't enabled. `error` is set if audio capture fails."""
+    isn't enabled. `paint` is the window's PaintState; `keys` the KeyMemory that
+    key presses are recorded in. `error` is set if audio capture fails.
 
-    def __init__(self, outputs, device_index, settings):
+    settings["mode"] is "music" or "paint": music renders the effect, paint plays
+    the painted colors (see paint.py)."""
+
+    def __init__(self, outputs, device_index, settings, paint_state, keys=None):
         super().__init__(daemon=True)
         self.workers = [OutputWorker(o) for o in outputs]
         self.device_index = device_index
         self.settings = settings
+        self.paint = paint_state
+        self.keys = keys if keys is not None else paint.KeyMemory()
         self.capture = audio.AudioCapture()
         self.analyzer = audio.Analyzer()
         self.preview = None
@@ -143,6 +150,17 @@ class Engine(threading.Thread):
         colors = np.clip(effects.render(self._effect, lay, a, palette, spatial), 0, 1)
         return colors * (self.settings["brightness"] / 100)
 
+    def _paint_colors(self, out, a, t):
+        """The painted lighting for one device at time t (seconds since the engine started)."""
+        p = self.settings["paint"]
+        n = out.layout.n
+        base = self.paint.frame_base(out.id, n)
+        heat = pressed = None
+        if out.keymap and (p["heatmap"] > 0 or p["react"] == "Keystrokes"):
+            heat, pressed = self.keys.maps(out.keymap, n, time.monotonic())
+        level = 0.0 if a.silent else float(np.mean(a.bands[:5]))
+        return paint.animate(base, out.layout, t, p, level, heat, pressed)
+
     def run(self):
         try:
             self.capture.start(self.device_index)
@@ -155,10 +173,12 @@ class Engine(threading.Thread):
             self._running = True
         silent_since = None
         frame_times = []
+        t_start = time.monotonic()
 
         while not self._quit.is_set():
             t0 = time.monotonic()
             s = self.settings
+            paint_mode = s["mode"] == "paint"
             if self._effect_name != s["effect"]:
                 self._effect_name = s["effect"]
                 self._effect = effects.EFFECTS[s["effect"]]()
@@ -170,27 +190,32 @@ class Engine(threading.Thread):
             a.process(self.capture.snapshot(), self.capture.rate)
             self._effect.update(a)
             palette, spatial = palette_for(s)
+            self.keys.fade_s = max(0.1, s["paint"]["heat_fade"] / 10)
 
             silent_since = (silent_since or t0) if a.silent else None
-            idle = (s["release_on_silence"] and silent_since is not None
+            idle = (not paint_mode and s["release_on_silence"] and silent_since is not None
                     and t0 - silent_since > SILENCE_RELEASE_S)
 
             frames = {}
             for w in self.workers:
-                colors = self._render(w.output.layout, a, palette, spatial)
+                if paint_mode:
+                    colors = self._paint_colors(w.output, a, t0 - t_start)
+                    rgb = colors * 255                    # linear: the color you picked is the color you see
+                else:
+                    colors = self._render(w.output.layout, a, palette, spatial)
+                    rgb = (colors ** 2.0) * 255           # LEDs are linear; gamma makes fades look even
                 frames[w.output.id] = colors
                 if idle:
                     w.request_release()
                     continue
-                # LEDs are linear; gamma makes fades look even to the eye.
-                rgb = (colors ** 2.0) * 255
                 budget = w.output.power_budget
                 if budget and rgb.sum() > budget:
                     rgb *= budget / rgb.sum()
                 w.submit(np.ascontiguousarray(rgb, dtype=np.uint8))
             preview = self.preview
             if preview is not None and preview.id not in frames:
-                frames[preview.id] = self._render(preview.layout, a, palette, spatial)
+                frames[preview.id] = (self._paint_colors(preview, a, t0 - t_start) if paint_mode
+                                      else self._render(preview.layout, a, palette, spatial))
             self.frames = frames
 
             frame_times = [t for t in frame_times if t0 - t < 1] + [t0]

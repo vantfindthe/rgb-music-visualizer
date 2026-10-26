@@ -13,6 +13,8 @@ class Output:
     detail    second line in the device list (backend, port, LED count)
     layout    layout.Layout of the device's LEDs, in the order send() expects
     power_budget  optional cap on the summed channel values of a frame
+    keymap    key id (see keymap.py) -> LED indices under that key; empty unless it's a keyboard
+              whose keys are known. Keystroke reactions and the heatmap need it.
     """
 
     id = ""
@@ -20,6 +22,7 @@ class Output:
     detail = ""
     layout = None
     power_budget = None
+    keymap = {}
 
     def open(self):
         """Prepares the device for streaming. Raises OutputError."""

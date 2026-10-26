@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 import audio
+import paint
 
 # ---------------------------------------------------------------- theme
 
@@ -79,26 +80,40 @@ class DevicePreview(tk.Canvas):
     """Draws a device's LEDs - keycaps for key grids, dots for strips - glowing
     in the current colors."""
 
-    def __init__(self, master, scale=1.0, **kw):
+    def __init__(self, master, scale=1.0, on_paint=None, **kw):
         super().__init__(master, bg=STAGE, highlightthickness=0, **kw)
         self.scale = scale
         self.layout = None
         self.title = ""
         self.items = []
         self.colors = np.zeros((0, 3))
+        self.centers = np.zeros((0, 2))  # where each LED is drawn, in canvas pixels
+        self.unit = 40.0                 # typical spacing between LEDs, in canvas pixels
+        self.on_paint = on_paint         # called as on_paint(x, y, start) for a click (start) or drag
         self._base = rgb01(KEY_OFF)
         self._stage = rgb01(STAGE)
         self.font = tkfont.Font(family=FONT, size=-round(12 * scale))
         self.bind("<Configure>", lambda e: self._layout())
+        self.bind("<Button-1>", lambda e: self._press(e, True))
+        self.bind("<B1-Motion>", lambda e: self._press(e, False))
 
     def set_layout(self, lay, title=""):
         self.layout, self.title = lay, title
         self.colors = np.zeros((lay.n if lay else 0, 3))
         self._layout()
 
+    def hits(self, x, y, size, weight, square):
+        """[(led, weight)] under a brush at canvas (x, y): see paint.brush_hits."""
+        return paint.brush_hits(self.centers, self.unit, x, y, size, weight, square)
+
+    def _press(self, e, start):
+        if self.on_paint is not None and self.layout is not None:
+            self.on_paint(e.x, e.y, start)
+
     def _layout(self):
         self.delete("all")
         self.items = []
+        self.centers = np.zeros((0, 2))
         w, h = self.winfo_width(), self.winfo_height()
         lay = self.layout
         if lay is None:
@@ -124,6 +139,10 @@ class DevicePreview(tk.Canvas):
                 key = self.create_polygon(rounded_points(x0, y0, x1, y1, radius), smooth=True,
                                           fill=KEY_OFF, outline=KEY_OUTLINE, width=1)
             self.items.append((halo, key))
+        if self.items:
+            self.centers = np.array([[ox + (x + kw / 2) * s, oy + (y + kh / 2) * s]
+                                     for x, y, kw, kh in lay.rects])
+            self.unit = paint.spacing(self.centers)
         self.show(self.colors)
 
     def show(self, colors):

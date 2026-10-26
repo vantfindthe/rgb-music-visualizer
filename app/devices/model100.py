@@ -6,6 +6,7 @@ Needs the MusicLEDs firmware plugin (firmware/Model100/MusicLEDs.h).
 import serial
 from serial.tools import list_ports
 
+import keymap
 import layout
 from .base import Output, OutputError
 
@@ -42,6 +43,7 @@ class Model100(Output):
         self.name = "Keyboardio Model 100"
         self.detail = f"USB serial · {port}"
         self.layout = layout.model100()
+        self.keymap = keymap.model100_keymap()
         self.focus = None
 
     def open(self):
